@@ -1,0 +1,101 @@
+//-------------------------------------------------------------
+// Tables
+//Overview
+/*The Eventory application uses a relational database with the following tables (models) defined in Django. 
+Each table corresponds to a Django model, and relationships are established through foreign keys. 
+The schema supports managing colleges, students, events, registrations, attendance, and feedback.*/
+//-------------------------------------------------------------
+
+Table College {
+id bigserial [pk, increment]
+  name varchar(255) [unique, not null]
+  code varchar(50) [unique, not null]
+}
+
+Table Student {
+  id bigserial [pk, increment]
+  college_id bigserial [not null]
+  full_name varchar(255) [not null]
+  email varchar [not null]
+  roll_no varchar(64) [not null]
+
+  // Constraints
+  Indexes {
+    (college_id, email) [unique]
+  }
+}
+
+Table Event {
+  id bigserial [pk, increment]
+  college_id bigserial [not null]
+  title varchar(255) [not null]
+  description text
+  type varchar(16) [not null]
+  start_at timestamp [not null]
+  end_at timestamp [not null]
+  capacity integer [default: 100]
+  registration_count integer [default: 0]
+
+  // Constraints
+  Indexes {
+    (college_id, title, start_at) [unique]
+    (college_id, type)
+    (start_at)
+  }
+}
+
+Table Registration {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  created_at timestamp [not null, default: `now()`]
+
+  // Constraints
+  Indexes {
+    (event_id, student_id) [unique]
+    (event_id)
+    (student_id)
+  }
+}
+
+Table Attendance {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  checked_in_at timestamp [not null, default: `now()`]
+
+  // Constraints
+  Indexes {
+    (event_id, student_id) [unique]
+    (event_id)
+    (student_id)
+  }
+}
+
+Table Feedback {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  rating smallint [not null]
+  comment text
+  created_at timestamp [not null, default: `now()`]
+
+  // Constraints
+  Indexes {
+    (event_id, student_id) [unique]
+    (event_id)
+  }
+}
+
+//-------------------------------------------------------------
+// Relationships
+//-------------------------------------------------------------
+
+Ref: College.id > Student.college_id [delete: cascade]
+Ref: College.id > Event.college_id [delete: cascade]
+Ref: Event.id > Registration.event_id [delete: cascade]
+Ref: Student.id > Registration.student_id [delete: cascade]
+Ref: Event.id > Attendance.event_id [delete: cascade]
+Ref: Student.id > Attendance.student_id [delete: cascade]
+Ref: Event.id > Feedback.event_id [delete: cascade]
+Ref: Student.id > Feedback.student_id [delete: cascade]

@@ -1,0 +1,9 @@
+databaseSchema.txt
+TODO.md
+db.sqlite3
+migrations/
+__pycache__/
+*.pyc
+.venv/
+env/
+.vscode/
