@@ -55,3 +55,58 @@ class FeedbackSerializer(serializers.ModelSerializer):
     class Meta:
         model = Feedback
         fields = ['id', 'event', 'student', 'rating', 'comment', 'created_at']
+
+
+class StudentRegistrationSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    collegeid = serializers.CharField(max_length=50)
+    email = serializers.EmailField()
+    studentid = serializers.CharField(max_length=64)
+    event_id = serializers.IntegerField()
+
+    def create(self, validated_data):
+        from .models import Student, College, Registration
+        name = validated_data['name']
+        collegeid = validated_data['collegeid']
+        email = validated_data['email']
+        studentid = validated_data['studentid']
+        event_id = validated_data['event_id']
+
+        try:
+            college = College.objects.get(code=collegeid)
+        except College.DoesNotExist:
+            raise serializers.ValidationError({'collegeid': 'Invalid college code.'})
+
+        student, created = Student.objects.get_or_create(
+            email=email,
+            college=college,
+            defaults={'full_name': name, 'roll_no': studentid}
+        )
+
+        if not created:
+            # Update details if student exists
+            student.full_name = name
+            student.roll_no = studentid
+            student.save()
+
+        event = Event.objects.get(id=event_id)
+
+        # Check if already registered
+        if Registration.objects.filter(event=event, student=student).exists():
+            raise serializers.ValidationError({'detail': 'Student already registered for this event.'})
+
+        # Check capacity
+        if event.registration_count >= event.capacity:
+            raise serializers.ValidationError({'detail': 'Event is at full capacity.'})
+
+        registration = Registration.objects.create(event=event, student=student)
+
+        # Update counts
+        college_count = Registration.objects.filter(event=event, student__college=college).count()
+        registration.college_registered_count = college_count
+        registration.save()
+
+        event.registration_count += 1
+        event.save()
+
+        return registration

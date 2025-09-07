@@ -1,12 +1,13 @@
 from datetime import timezone
 from django.db import IntegrityError
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from event.serializer import (
     CollegeSerializer, StudentSerializer, EventSerializer,
-    AttendanceSerializer, FeedbackSerializer, RegistrationSerializer
+    AttendanceSerializer, FeedbackSerializer, RegistrationSerializer,
+    StudentRegistrationSerializer
 )
 from event.models import College, Student, Event, Registration, Attendance, Feedback
 from event.reports import ReportsService
@@ -27,22 +28,20 @@ class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
 
+    def get_serializer_class(self):
+        # Use StudentRegistrationSerializer only for the "register" action
+        if self.action == 'register':
+            return StudentRegistrationSerializer
+        return super().get_serializer_class()
+
     @action(detail=True, methods=['post'], url_path='register')
     def register(self, request, pk=None):
         event = self.get_object()
-        student_id = request.data.get('student')
-        try:
-            reg = Registration.objects.create(event=event, student_id=student_id)
-            # Calculate the number of students registered from the same college for this event
-            college = reg.student.college
-            count = Registration.objects.filter(event=event, student__college=college).count()
-            reg.college_registered_count = count
-            reg.save()
-            event.registration_count += 1
-            event.save()
-            return Response(RegistrationSerializer(reg).data, status=status.HTTP_201_CREATED)
-        except IntegrityError:
-            return Response({'detail': 'Student already registered for this event.'}, status=400)
+        serializer = self.get_serializer(data=request.data, context={'event': event})
+        if serializer.is_valid():
+            registration = serializer.save()
+            return Response(RegistrationSerializer(registration).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='attendance')
     def attendance(self, request, pk=None):
