@@ -1,28 +1,32 @@
-
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import IntegrityError
-from rest_framework import viewsets, status, serializers
-from rest_framework.decorators import action
+from rest_framework import viewsets, status
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from event.serializer import (
     CollegeSerializer, StudentSerializer, EventSerializer,
     AttendanceSerializer, FeedbackSerializer, RegistrationSerializer,
-    StudentRegistrationSerializer
+    StudentRegistrationSerializer, UserRegistrationSerializer
 )
 from event.models import College, Student, Event, Registration, Attendance, Feedback
+from event.permissions import IsAdminOrReadOnly, IsAdmin, IsStudent, IsAuthenticated
 from event.reports import ReportsService
-from rest_framework.decorators import api_view
 
 
 class CollegeViewSet(viewsets.ModelViewSet):
     queryset = College.objects.all()
     serializer_class = CollegeSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
 
 class StudentViewSet(viewsets.ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
     @action(detail=True, methods=['get'], url_path='registered_events')
     def registered_events(self, request, pk=None):
@@ -43,10 +47,30 @@ class StudentViewSet(viewsets.ModelViewSet):
             })
         return Response(events_data, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['get'], url_path='registered')
+    def registered(self, request):
+        students = Student.objects.filter(registrations__isnull=False).distinct().select_related('college')
+        serializer = StudentSerializer(students, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
     serializer_class = EventSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_permissions(self):
+        """Override to set different permissions for different actions"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # Only Admins can create, update, or delete events
+            self.permission_classes = [IsAuthenticated, IsAdmin]
+        elif self.action in ['register', 'attendance', 'feedback']:
+            # Students can register, check-in, and provide feedback
+            self.permission_classes = [IsAuthenticated, IsStudent]
+        else:
+            # Read operations (list, retrieve) are allowed for all authenticated users
+            self.permission_classes = [IsAuthenticated]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         # Use StudentRegistrationSerializer only for the "register" action
@@ -134,6 +158,13 @@ class EventViewSet(viewsets.ModelViewSet):
         students_data = [{'student_id': reg.student.id, 'full_name': reg.student.full_name, 'email': reg.student.email} for reg in registrations]
         return Response(students_data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], url_path='attendance')
+    def attendance_list(self, request, pk=None):
+        event = self.get_object()
+        attendances = Attendance.objects.filter(event=event).select_related('student', 'college')
+        serializer = AttendanceSerializer(attendances, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'], url_path='feedback')
     def feedback(self, request, pk=None):
         event = self.get_object()
@@ -155,6 +186,7 @@ class EventViewSet(viewsets.ModelViewSet):
 class FeedbackViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Feedback.objects.all()
     serializer_class = FeedbackSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         queryset = Feedback.objects.select_related('event', 'student')
@@ -191,3 +223,58 @@ def top_students(request):
     limit = int(request.query_params.get('limit', 3))
     college_id = request.query_params.get('college')
     return Response(ReportsService.top_students(limit=limit, college_id=college_id))
+
+
+# User Registration and Authentication Views
+
+from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework import status
+from rest_framework.response import Response
+from django.contrib.auth import authenticate, login, logout
+from django.shortcuts import redirect
+
+
+class RegisterUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        serializer = UserRegistrationSerializer()
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = UserRegistrationSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return redirect('/api/auth/login/')
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LoginUserView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # Return empty serializer fields for browsable API form
+        return Response({"username": "", "password": ""})
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('/api/')
+        else:
+            return Response(
+                {"detail": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED
+            )
+
+
+class LogoutUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        logout(request)
+        return Response(
+            {"detail": "Logout successful."}, status=status.HTTP_200_OK
+        )

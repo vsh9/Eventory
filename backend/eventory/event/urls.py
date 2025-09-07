@@ -1,22 +1,19 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-                    CollegeViewSet, StudentViewSet, EventViewSet, FeedbackViewSet,
-                    event_metrics, event_popularity, student_participation, top_students)
-
+from event.views import (
+    CollegeViewSet, StudentViewSet, EventViewSet, FeedbackViewSet,
+    RegisterUserView, LoginUserView, LogoutUserView
+)
 
 router = DefaultRouter()
-router.register(r'colleges', CollegeViewSet, basename='college')
-router.register(r'students', StudentViewSet, basename='student')
-router.register(r'events', EventViewSet, basename='event')
-router.register(r'feedbacks', FeedbackViewSet, basename='feedback')
-
+router.register(r'colleges', CollegeViewSet)
+router.register(r'students', StudentViewSet)
+router.register(r'events', EventViewSet)
+router.register(r'feedbacks', FeedbackViewSet)
 
 urlpatterns = [
-path('', include(router.urls)),
-# Reports
-path('reports/event-metrics/<int:event_id>/', event_metrics, name='event-metrics'),
-path('reports/event-popularity/', event_popularity, name='event-popularity'),
-path('reports/student-participation/<int:student_id>/', student_participation, name='student-participation'),
-path('reports/top-students/', top_students, name='top-students'),
+    path('', include(router.urls)),
+    path('auth/register/', RegisterUserView.as_view(), name='register'),
+    path('auth/login/', LoginUserView.as_view(), name='login'),
+    path('auth/logout/', LogoutUserView.as_view(), name='logout'),
 ]
