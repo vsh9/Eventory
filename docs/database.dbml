@@ -1,0 +1,96 @@
+Project Eventory {
+  database_type: "PostgreSQL"
+  Note: "Database schema for the Eventory application, managing colleges, students, events, registrations, attendance, and feedback."
+}
+
+Table College {
+  id bigserial [pk, increment]
+  name varchar(255) [not null, unique]
+  code varchar(50) [not null, unique]
+  location varchar(255)
+  tot_students integer [default: 0, not null]
+}
+
+Table Student {
+  id bigserial [pk, increment]
+  college_id bigserial [not null]
+  full_name varchar(255) [not null]
+  email varchar(254) [not null]
+  roll_no varchar(64) [not null]
+
+  indexes {
+    (college_id, email) [unique]
+  }
+}
+
+Table Event {
+  id bigserial [pk, increment]
+  college_id bigserial [not null]
+  title varchar(255) [not null]
+  description text
+  type varchar(16) [not null]
+  start_at timestamp [not null]
+  end_at timestamp [not null]
+  capacity integer [default: 100, not null]
+  registration_count integer [default: 0, not null]
+
+  indexes {
+    (college_id, title, start_at) [unique]
+    (college_id, type)
+    start_at
+  }
+}
+
+Table Registration {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  college_registered_count integer [default: 0, not null]
+  created_at timestamp [not null]
+
+  indexes {
+    (event_id, student_id) [unique]
+    event_id
+    student_id
+  }
+}
+
+Table Attendance {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  college_id bigserial [not null]
+  has_given_feedback boolean [default: false, not null]
+  checked_in_at timestamp [not null]
+  is_present boolean [default: false, not null]
+
+  indexes {
+    (event_id, student_id) [unique]
+    event_id
+    student_id
+  }
+}
+
+Table Feedback {
+  id bigserial [pk, increment]
+  event_id bigserial [not null]
+  student_id bigserial [not null]
+  rating smallint [not null]
+  comment text
+  created_at timestamp [not null]
+
+  indexes {
+    (event_id, student_id) [unique]
+    event_id
+  }
+}
+
+Ref: Student.college_id > College.id [delete: cascade]
+Ref: Event.college_id > College.id [delete: cascade]
+Ref: Registration.event_id > Event.id [delete: cascade]
+Ref: Registration.student_id > Student.id [delete: cascade]
+Ref: Attendance.event_id > Event.id [delete: cascade]
+Ref: Attendance.student_id > Student.id [delete: cascade]
+Ref: Attendance.college_id > College.id [delete: cascade]
+Ref: Feedback.event_id > Event.id [delete: cascade]
+Ref: Feedback.student_id > Student.id [delete: cascade]
