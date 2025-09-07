@@ -22,4 +22,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', RedirectView.as_view(url='/api/auth/register/', permanent=False)),
     path('api/', include('event.urls')),
+    path('api/reports/', include('reports.urls')),
 ]
