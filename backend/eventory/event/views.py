@@ -24,6 +24,25 @@ class StudentViewSet(viewsets.ModelViewSet):
     queryset = Student.objects.all()
     serializer_class = StudentSerializer
 
+    @action(detail=True, methods=['get'], url_path='registered_events')
+    def registered_events(self, request, pk=None):
+        student = self.get_object()
+        registrations = Registration.objects.filter(student=student).select_related('event')
+        events_data = []
+        for reg in registrations:
+            event = reg.event
+            events_data.append({
+                'id': event.id,
+                'title': event.title,
+                'description': event.description,
+                'type': event.type,
+                'start_at': event.start_at,
+                'end_at': event.end_at,
+                'college': event.college.name,
+                'has_given_feedback': Attendance.objects.filter(event=event, student=student, has_given_feedback=True).exists()
+            })
+        return Response(events_data, status=status.HTTP_200_OK)
+
 
 class EventViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all()
@@ -35,6 +54,8 @@ class EventViewSet(viewsets.ModelViewSet):
             return StudentRegistrationSerializer
         elif self.action == 'attendance':
             return AttendanceSerializer
+        elif self.action == 'feedback':
+            return FeedbackSerializer
         return super().get_serializer_class()
 
     @action(detail=True, methods=['post'], url_path='register')
@@ -47,7 +68,7 @@ class EventViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='attendance')
-    def attendance(self, request, pk=None):
+    def attendance(self, request, pk=None):  # sourcery skip: low-code-quality
         event = self.get_object()
         students = request.data.get('students')
 
@@ -82,8 +103,8 @@ class EventViewSet(viewsets.ModelViewSet):
             has_given_feedback = request.data.get('has_given_feedback', False)
 
             # Convert string booleans to actual booleans (shorter)
-            is_present = is_present if isinstance(is_present, bool) else str(is_present).lower() in ['true', '1', 'yes', 'on']
-            has_given_feedback = has_given_feedback if isinstance(has_given_feedback, bool) else str(has_given_feedback).lower() in ['true', '1', 'yes', 'on']
+            is_present = is_present if isinstance(is_present, bool) else str(is_present).lower() in {'true', '1', 'yes', 'on'}
+            has_given_feedback = has_given_feedback if isinstance(has_given_feedback, bool) else str(has_given_feedback).lower() in {'true', '1', 'yes', 'on'}
 
             if not student_id:
                 return Response({'detail': 'Student ID is required.'}, status=400)
@@ -116,8 +137,10 @@ class EventViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='feedback')
     def feedback(self, request, pk=None):
         event = self.get_object()
-        data = {**request.data, 'event': event.id}
+        data = request.data.copy()
+        data['event'] = event.id
         ser = FeedbackSerializer(data=data)
+        
         if ser.is_valid():
             try:
                 feedback = ser.save()
@@ -127,6 +150,21 @@ class EventViewSet(viewsets.ModelViewSet):
             except IntegrityError:
                 return Response({'detail': 'Feedback already submitted by this student.'}, status=400)
         return Response(ser.errors, status=400)
+
+
+class FeedbackViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Feedback.objects.all()
+    serializer_class = FeedbackSerializer
+
+    def get_queryset(self):
+        queryset = Feedback.objects.select_related('event', 'student')
+        event_id = self.request.query_params.get('event')
+        student_id = self.request.query_params.get('student')
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        if student_id:
+            queryset = queryset.filter(student_id=student_id)
+        return queryset
 
 
 # ---- Report Endpoints ----

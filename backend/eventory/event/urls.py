@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ( 
-                    CollegeViewSet, StudentViewSet, EventViewSet,
+from .views import (
+                    CollegeViewSet, StudentViewSet, EventViewSet, FeedbackViewSet,
                     event_metrics, event_popularity, student_participation, top_students)
 
 
@@ -9,6 +9,7 @@ router = DefaultRouter()
 router.register(r'colleges', CollegeViewSet, basename='college')
 router.register(r'students', StudentViewSet, basename='student')
 router.register(r'events', EventViewSet, basename='event')
+router.register(r'feedbacks', FeedbackViewSet, basename='feedback')
 
 
 urlpatterns = [

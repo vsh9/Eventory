@@ -27,9 +27,7 @@ class EventSerializer(serializers.ModelSerializer):
 
     def get_avg_feedback(self, obj):
         feedbacks = obj.feedbacks.all()
-        if feedbacks:
-            return sum(f.rating for f in feedbacks) / len(feedbacks)
-        return 0.0
+        return sum(f.rating for f in feedbacks) / len(feedbacks) if feedbacks else 0.0
 
     class Meta:
         model = Event
@@ -52,9 +50,26 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
 
 class FeedbackSerializer(serializers.ModelSerializer):
+    event_title = serializers.CharField(source='event.title', read_only=True)
+    student_name = serializers.CharField(source='student.full_name', read_only=True)
+    student_email = serializers.CharField(source='student.email', read_only=True)
+
+    student = serializers.PrimaryKeyRelatedField(queryset=Student.objects.all(), write_only=True)
+    comment = serializers.CharField()
+
+    def validate_student(self, value):
+        if isinstance(value, list):
+            raise serializers.ValidationError("Expected a single student ID, but got a list.")
+        return value
+
+    def validate_comment(self, value):
+        if isinstance(value, list):
+            raise serializers.ValidationError("Expected a string for comment, but got a list.")
+        return value
+
     class Meta:
         model = Feedback
-        fields = ['id', 'event', 'student', 'rating', 'comment', 'created_at']
+        fields = ['id', 'event', 'event_title', 'student', 'student_name', 'student_email', 'rating', 'comment', 'created_at']
 
 
 class StudentRegistrationSerializer(serializers.Serializer):
