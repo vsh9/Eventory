@@ -73,6 +73,7 @@ class Attendance(models.Model):
     college = models.ForeignKey(College, on_delete=models.CASCADE, related_name='attendances')
     has_given_feedback = models.BooleanField(default=False)
     checked_in_at = models.DateTimeField(auto_now_add=True)
+    is_present = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('event', 'student')

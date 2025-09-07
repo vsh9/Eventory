@@ -48,7 +48,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
-        fields = ['id', 'event', 'student', 'college', 'has_given_feedback', 'checked_in_at']
+        fields = ['id', 'event', 'student', 'college', 'has_given_feedback', 'checked_in_at', 'is_present']
 
 
 class FeedbackSerializer(serializers.ModelSerializer):
